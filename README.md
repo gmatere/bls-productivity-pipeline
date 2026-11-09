@@ -102,11 +102,24 @@ the PySpark Gold table and counts disagreements. **It returns 0.**
 
 ## Screenshots
 
+**The pipeline** — 5 Bronze, 3 Silver, 3 Gold, with expectations on Silver.
+
 ![Pipeline graph](screenshots/pipeline-graph.png)
+
+**Unity Catalog** — the twelve tables plus the raw Volume.
 
 ![Tables in Unity Catalog](screenshots/catalog-tables.png)
 
-![Gold answers](screenshots/gold-answers.png)
+**The three answers.**
+
+![Q1 — population statistics](screenshots/gold-q1-population-stats.png)
+
+![Q2 — best year per series](screenshots/gold-q2-best-year.png)
+
+![Q3 — PRS30006032 Q01 with population](screenshots/gold-q3-prs30006032.png)
+
+**Re-running ingestion changes nothing** — every file reports `skipped`,
+nothing is re-downloaded, nothing is tombstoned.
 
 ![Idempotent re-run](screenshots/idempotent-rerun.png)
 
