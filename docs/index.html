@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BLS Productivity Pipeline — Architecture</title>
+<style>
+:root{
+  --ink:#111827; --body:#374151; --muted:#6b7280; --line:#e5e7eb;
+  --bg:#ffffff; --panel:#f9fafb; --accent:#1d4ed8; --accent-soft:#eff6ff;
+  --bronze:#b45309; --silver:#475569; --gold:#a16207;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--body);
+  font:16px/1.65 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:860px;margin:0 auto;padding:56px 24px 96px}
+h1{font-size:30px;line-height:1.2;margin:0 0 10px;color:var(--ink);letter-spacing:-.5px;font-weight:700}
+h2{font-size:21px;margin:52px 0 14px;color:var(--ink);letter-spacing:-.2px;font-weight:650;
+   padding-bottom:9px;border-bottom:1px solid var(--line)}
+h3{font-size:16px;margin:28px 0 8px;color:var(--ink);font-weight:650}
+p{margin:12px 0}
+.lede{font-size:17px;color:var(--muted);margin:0 0 6px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:13.5px;background:var(--panel);
+     padding:2px 5px;border-radius:4px;color:#1f2937}
+.repo{display:inline-block;margin-top:14px;font-family:var(--mono);font-size:13.5px;
+      background:var(--accent-soft);border:1px solid #bfdbfe;color:var(--accent);
+      padding:7px 13px;border-radius:7px}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:20px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.card .n{font-size:24px;font-weight:700;color:var(--ink);letter-spacing:-.5px;
+         font-variant-numeric:tabular-nums}
+.card .l{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+figure{margin:22px 0}
+figure svg{width:100%;height:auto;display:block}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
+
+.note{background:var(--accent-soft);border-left:3px solid var(--accent);
+      border-radius:0 8px 8px 0;padding:14px 18px;margin:18px 0;font-size:15px}
+.note b{color:var(--ink)}
+
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:650}
+td code{font-size:12.5px}
+
+.shot{margin:26px 0}
+.shot h3{margin-bottom:6px}
+.shot p{font-size:14.5px;color:var(--muted);margin:0 0 10px}
+.shot img{width:100%;border:1px solid var(--line);border-radius:9px;display:block}
+
+footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);
+       font-size:13.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>BLS Productivity Pipeline</h1>
+<p class="lede">US labour productivity time series and national population, ingested
+and modelled on Databricks with Delta Lake, Unity Catalog and a Spark Declarative Pipeline.</p>
+<a class="repo" href="https://github.com/gmatere/bls-productivity-pipeline">github.com/gmatere/bls-productivity-pipeline</a>
+
+<h2>The answers</h2>
+
+<h3>1 · US population, 2013–2018</h3>
+<div class="cards">
+  <div class="card"><div class="n">322,069,808</div><div class="l">Mean</div></div>
+  <div class="card"><div class="n">4,158,441</div><div class="l">Std dev — sample</div></div>
+  <div class="card"><div class="n">3,796,120</div><div class="l">Std dev — population</div></div>
+  <div class="card"><div class="n">6</div><div class="l">Years observed</div></div>
+</div>
+<p>The question doesn't say which standard deviation. Spark's <code>stddev</code> returns
+the sample form, but 2013–2018 is the complete set of years the question names rather
+than a sample from a wider population — so the population form is arguably the better
+default. Both are emitted and the reader chooses.</p>
+
+<h3>2 · Best year per series</h3>
+<div class="cards">
+  <div class="card"><div class="n">283</div><div class="l">Series with a best year</div></div>
+  <div class="card"><div class="n">337</div><div class="l">Series in the metadata</div></div>
+  <div class="card"><div class="n">54</div><div class="l">With no quarterly rows</div></div>
+</div>
+<p>Each row carries BLS's own <code>series_title</code>, so a reader unfamiliar with the
+codes can tell <em>Employment for the Manufacturing sector, Index (2017=100)</em> from
+<em>…, Level (Millions of jobs)</em>.</p>
+
+<h3>3 · PRS30006032, Q01, with population</h3>
+<div class="cards">
+  <div class="card"><div class="n">39</div><div class="l">Observation years, 1988–2026</div></div>
+  <div class="card"><div class="n">11</div><div class="l">With a population figure</div></div>
+</div>
+<p>The question asks for population <em>where available</em>, so this is a left join:
+observations run from 1988, the population API covers 2013–2019 and 2021–2024. The gap
+at 2020 is real — no ACS 1-year estimate was published that year.</p>
+
+<h2>How the data gets in</h2>
+
+<p>Re-running must handle files that were added, changed or removed, and must not
+reprocess anything already ingested. Filenames can't carry that, because
+<code>pr.data.0.Current</code> changes in place. So ingestion keeps a <b>manifest</b> —
+one Delta row per file holding its ETag, Last-Modified, SHA-256, size and status.</p>
+
+<figure>
+<svg viewBox="0 0 820 300" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#9ca3af"/>
+    </marker>
+  </defs>
+  <g font-size="12.5">
+    <rect x="8" y="118" width="128" height="46" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+    <text x="72" y="138" text-anchor="middle" fill="#111827" font-weight="600">HEAD request</text>
+    <text x="72" y="153" text-anchor="middle" fill="#6b7280" font-size="11">no body transferred</text>
+
+    <path d="M138 141 H196" stroke="#9ca3af" fill="none" marker-end="url(#a)"/>
+
+    <polygon points="268,110 336,141 268,172 200,141" fill="#eff6ff" stroke="#93c5fd"/>
+    <text x="268" y="137" text-anchor="middle" fill="#111827" font-size="11.5">headers</text>
+    <text x="268" y="151" text-anchor="middle" fill="#111827" font-size="11.5">changed?</text>
+
+    <path d="M268 108 V60 H404" stroke="#9ca3af" fill="none" marker-end="url(#a)"/>
+    <text x="280" y="80" fill="#6b7280" font-size="11">no</text>
+    <rect x="408" y="38" width="118" height="44" rx="8" fill="#ecfdf5" stroke="#6ee7b7"/>
+    <text x="467" y="65" text-anchor="middle" fill="#065f46" font-weight="600">skip</text>
+
+    <path d="M338 141 H396" stroke="#9ca3af" fill="none" marker-end="url(#a)"/>
+    <text x="352" y="134" fill="#6b7280" font-size="11">yes</text>
+
+    <rect x="400" y="118" width="132" height="46" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+    <text x="466" y="138" text-anchor="middle" fill="#111827" font-weight="600">download</text>
+    <text x="466" y="153" text-anchor="middle" fill="#6b7280" font-size="11">and SHA-256 it</text>
+
+    <polygon points="610,110 676,141 610,172 544,141" fill="#eff6ff" stroke="#93c5fd"/>
+    <text x="610" y="137" text-anchor="middle" fill="#111827" font-size="11.5">hash</text>
+    <text x="610" y="151" text-anchor="middle" fill="#111827" font-size="11.5">same?</text>
+    <path d="M534 141 H542" stroke="#9ca3af" fill="none" marker-end="url(#a)"/>
+
+    <path d="M610 108 V60 H686" stroke="#9ca3af" fill="none" marker-end="url(#a)"/>
+    <text x="620" y="80" fill="#6b7280" font-size="11">yes</text>
+    <rect x="690" y="38" width="122" height="44" rx="8" fill="#fffbeb" stroke="#fcd34d"/>
+    <text x="751" y="58" text-anchor="middle" fill="#92400e" font-size="11.5" font-weight="600">update headers</text>
+    <text x="751" y="72" text-anchor="middle" fill="#92400e" font-size="11">file untouched</text>
+
+    <path d="M610 174 V222 H686" stroke="#9ca3af" fill="none" marker-end="url(#a)"/>
+    <text x="620" y="196" fill="#6b7280" font-size="11">no</text>
+    <rect x="690" y="200" width="122" height="44" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+    <text x="751" y="220" text-anchor="middle" fill="#1e3a8a" font-size="11.5" font-weight="600">write to Volume</text>
+    <text x="751" y="234" text-anchor="middle" fill="#1e3a8a" font-size="11">update manifest</text>
+
+    <rect x="8" y="228" width="400" height="44" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-dasharray="4 3"/>
+    <text x="24" y="248" fill="#111827" font-size="11.5" font-weight="600">After the loop</text>
+    <text x="24" y="263" fill="#6b7280" font-size="11">in the manifest but no longer at source → status = removed</text>
+  </g>
+</svg>
+<figcaption>One file, one pass. The cheap check first, the authoritative one only when needed.</figcaption>
+</figure>
+
+<div class="note">
+<b>The headers are a hint; the hash is the proof.</b> BLS builds its ETag from the publish
+batch, not the file contents — <code>pr.data.1.AllData</code> and <code>pr.series</code>
+returned the same ETag. A republish therefore moves the ETag on files that didn't change,
+and the hash check is what stops the whole batch being downloaded again for nothing.
+</div>
+
+<p>Removed files are marked, not deleted: a file disappearing upstream is worth knowing
+about. The file list itself is read from the BLS directory page at runtime, so nothing is
+hardcoded and a new file is picked up without a code change.</p>
+
+<p><code>403</code> is resolved the way BLS's
+<a href="https://www.bls.gov/bls/pss.htm">access policy</a> asks — a
+<code>User-Agent</code> carrying a contact address — and requests retry with exponential
+backoff on <code>429</code> and <code>5xx</code>.</p>
+
+<h2>How it's modelled</h2>
+
+<figure>
+<svg viewBox="0 0 820 400" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
+  <defs>
+    <marker id="b" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#cbd5e1"/>
+    </marker>
+  </defs>
+  <g font-size="11.5">
+    <text x="112" y="18" text-anchor="middle" fill="#b45309" font-size="11.5" font-weight="700" letter-spacing="1">BRONZE</text>
+    <text x="410" y="18" text-anchor="middle" fill="#475569" font-size="11.5" font-weight="700" letter-spacing="1">SILVER</text>
+    <text x="708" y="18" text-anchor="middle" fill="#a16207" font-size="11.5" font-weight="700" letter-spacing="1">GOLD</text>
+
+    <!-- bronze -->
+    <g fill="#fffbeb" stroke="#fcd34d">
+      <rect x="8" y="34"  width="208" height="42" rx="7"/>
+      <rect x="8" y="98"  width="208" height="42" rx="7"/>
+      <rect x="8" y="162" width="208" height="42" rx="7"/>
+      <rect x="8" y="226" width="208" height="42" rx="7"/>
+      <rect x="8" y="296" width="208" height="42" rx="7"/>
+    </g>
+    <g fill="#78350f" font-family="ui-monospace,Menlo,monospace" font-size="11.5">
+      <text x="22" y="54">bronze_pr_data</text>
+      <text x="22" y="118">bronze_pr_series</text>
+      <text x="22" y="182">bronze_pr_sector</text>
+      <text x="22" y="246">bronze_pr_measure</text>
+      <text x="22" y="316">bronze_population</text>
+    </g>
+    <g fill="#a16207" font-size="10.5">
+      <text x="22" y="68">92,328 rows</text>
+      <text x="22" y="132">337</text>
+      <text x="22" y="196">6</text>
+      <text x="22" y="260">22</text>
+      <text x="22" y="330">11</text>
+    </g>
+
+    <!-- arrows bronze -> silver -->
+    <path d="M218 55 H304"            stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M218 119 C262 119 260 183 304 183" stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M218 183 H304"           stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M218 247 C262 247 260 183 304 183" stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M218 317 H304"           stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+
+    <!-- silver -->
+    <g fill="#f8fafc" stroke="#cbd5e1">
+      <rect x="308" y="34"  width="204" height="42" rx="7"/>
+      <rect x="308" y="162" width="204" height="42" rx="7"/>
+      <rect x="308" y="296" width="204" height="42" rx="7"/>
+    </g>
+    <g fill="#1e293b" font-family="ui-monospace,Menlo,monospace" font-size="11.5">
+      <text x="322" y="54">silver_observations</text>
+      <text x="322" y="182">silver_series</text>
+      <text x="322" y="316">silver_population</text>
+    </g>
+    <g fill="#64748b" font-size="10.5">
+      <text x="322" y="68">92,328 · 5 expectations</text>
+      <text x="322" y="196">337 · 1 expectation</text>
+      <text x="322" y="330">11 · 1 expectation</text>
+    </g>
+
+    <!-- arrows silver -> gold -->
+    <path d="M514 55  C556 55  560 96  602 96"   stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M514 183 C556 183 560 96  602 96"   stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M514 55  C560 55  556 205 602 205"  stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M514 317 C556 317 560 205 602 205"  stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+    <path d="M514 317 H602"                       stroke="#cbd5e1" fill="none" marker-end="url(#b)"/>
+
+    <!-- gold -->
+    <g fill="#fefce8" stroke="#fde047">
+      <rect x="606" y="75"  width="206" height="42" rx="7"/>
+      <rect x="606" y="184" width="206" height="42" rx="7"/>
+      <rect x="606" y="296" width="206" height="42" rx="7"/>
+    </g>
+    <g fill="#713f12" font-family="ui-monospace,Menlo,monospace" font-size="11">
+      <text x="620" y="95">gold_series_best_year</text>
+      <text x="620" y="204">gold_prs30006032_q01</text>
+      <text x="620" y="316">gold_population_stats</text>
+    </g>
+    <g fill="#a16207" font-size="10.5">
+      <text x="620" y="109">283 rows — question 2</text>
+      <text x="620" y="218">39 rows — question 3</text>
+      <text x="620" y="330">1 row — question 1</text>
+    </g>
+  </g>
+</svg>
+<figcaption>Eleven tables in one Spark Declarative Pipeline. Expectations sit on Silver.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Layer</th><th>Job</th></tr>
+  <tr>
+    <td><b>Bronze</b></td>
+    <td>Stores what the source sent, everything as text, one table per file. Only
+        <em>names</em> are cleaned — BLS pads its headers to a fixed width inside a
+        tab-separated file, and Delta rejects the space in the API's
+        <code>Nation ID</code>. Values pass through untouched.</td>
+  </tr>
+  <tr>
+    <td><b>Silver</b></td>
+    <td>Trims, types and asserts. <code>series_id</code> <em>values</em> are padded too —
+        without trimming, <code>WHERE series_id = 'PRS30006032'</code> returns nothing and
+        question 3 quietly has no answer. Expectations live here because this is the first
+        layer that makes a claim.</td>
+  </tr>
+  <tr>
+    <td><b>Gold</b></td>
+    <td>One table per question, nothing else.</td>
+  </tr>
+</table>
+
+<h3>SQL or PySpark</h3>
+<p>PySpark is primary and builds the Gold tables; Spark SQL is the documented alternative.
+They don't just look alike — the SQL file full-outer-joins its result for question 2
+against the PySpark Gold table and counts the rows that disagree. <b>The answer is zero.</b></p>
+
+<h2>Decisions that mattered</h2>
+
+<div class="note">
+<b>Q05 is the annual average, not a fifth quarter.</b> <code>pr.period</code> lists
+<code>Q01</code>–<code>Q04</code> as quarters and <code>Q05</code> as <em>AN AV</em>.
+Question 2 asks for the largest sum "across all its quarters" — and including
+<code>Q05</code> adds the average of four numbers to those same four numbers. Excluded,
+and carried through Silver as <code>is_annual_average</code> so the decision is visible
+where it's made rather than buried in a filter.
+</div>
+
+<h3>A green pipeline that produced nothing</h3>
+<p><code>dlt.read()</code> reads the <em>last committed</em> version of a table, not the
+one being built in the current run. On a clean run every Silver table read an empty
+Bronze, produced zero rows, and the pipeline reported success. It fixes itself on the
+second run — which is what makes it dangerous. <code>spark.read.table()</code> resolves
+to the in-flight version.</p>
+<p><em>Does it work on a clean deployment</em> is a different question from <em>does it
+work</em>.</p>
+
+<h3>The label BLS had already written</h3>
+<p>A label composed from sector and measure rendered four different series identically.
+They differ by <code>duration_code</code> — percent change, index, level — which that
+label threw away. <code>pr.series</code> carries a <code>series_title</code> that
+distinguishes them properly. Enough of the documentation had been read to find the lookup
+tables; not enough to notice the answer was in the file already open.</p>
+
+<h3>The deduplication that wasn't added</h3>
+<p>There are no duplicates on <code>(series_id, year, period)</code> across all 92,328
+rows. That's asserted with an expectation rather than papered over with a
+<code>dropDuplicates()</code>, which on a pair with differing values picks one at random
+and produces a wrong number with nothing to warn you.</p>
+
+<h2>Screenshots</h2>
+
+<div class="shot">
+  <h3>The pipeline</h3>
+  <p>Five Bronze, three Silver, three Gold. Expectations on Silver.</p>
+  <img src="https://raw.githubusercontent.com/gmatere/bls-productivity-pipeline/main/screenshots/pipeline-graph.png" alt="Pipeline graph">
+</div>
+
+<div class="shot">
+  <h3>Unity Catalog</h3>
+  <p>Twelve tables and the raw Volume, each table commented.</p>
+  <img src="https://raw.githubusercontent.com/gmatere/bls-productivity-pipeline/main/screenshots/catalog-tables.png" alt="Unity Catalog tables">
+</div>
+
+<div class="shot">
+  <h3>Question 1 — population statistics</h3>
+  <img src="https://raw.githubusercontent.com/gmatere/bls-productivity-pipeline/main/screenshots/gold-q1-population-stats.png" alt="Q1 result">
+</div>
+
+<div class="shot">
+  <h3>Question 2 — best year per series</h3>
+  <p>Note the four <code>PRS300060 1x</code> series: same measure, four different units.</p>
+  <img src="https://raw.githubusercontent.com/gmatere/bls-productivity-pipeline/main/screenshots/gold-q2-best-year.png" alt="Q2 result">
+</div>
+
+<div class="shot">
+  <h3>Question 3 — PRS30006032 Q01 with population</h3>
+  <p>39 rows. Population present for 11 of them; the jump from 2019 to 2021 is the ACS gap.</p>
+  <img src="https://raw.githubusercontent.com/gmatere/bls-productivity-pipeline/main/screenshots/gold-q3-prs30006032.png" alt="Q3 result">
+</div>
+
+<div class="shot">
+  <h3>Re-running changes nothing</h3>
+  <p>Every file reports <code>skipped</code>. Nothing re-downloaded, nothing tombstoned.</p>
+  <img src="https://raw.githubusercontent.com/gmatere/bls-productivity-pipeline/main/screenshots/idempotent-rerun.png" alt="Idempotent re-run">
+</div>
+
+<footer>
+  Full write-up — architecture, trade-offs and retrospective — in
+  <a href="https://github.com/gmatere/bls-productivity-pipeline/blob/main/PROCESS.md">PROCESS.md</a>.
+  Source: <a href="https://github.com/gmatere/bls-productivity-pipeline">github.com/gmatere/bls-productivity-pipeline</a>.
+</footer>
+
+</div>
+</body>
+</html>
