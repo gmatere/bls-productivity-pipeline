@@ -1,7 +1,3 @@
-# Databricks notebook source
-# Spark Declarative Pipeline source: Bronze and Silver.
-# Attached to pipeline `bls_productivity`, target workspace.rearc.
-
 import dlt
 from pyspark.sql import functions as F
 
