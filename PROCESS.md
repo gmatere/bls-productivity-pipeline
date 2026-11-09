@@ -18,10 +18,13 @@ hardcoded, so a new file is picked up without a code change.
 
 **Reading the BLS documentation changed two answers.** `pr.period` is where
 `Q05` turns out to be the annual average, not a fifth quarter — the single most
-important fact here, and you only find it by reading the docs. The readable
-labels question 2 asks for come from the same place: `pr.series` holds only
-codes, joined to `pr.sector` and `pr.measure` to make *Labor productivity
-(output per hour) — Manufacturing*.
+important fact here, and you only find it by reading the docs.
+
+The readable labels question 2 asks for come from `pr.series`, which carries a
+`series_title` written by BLS: *Employment for the Manufacturing sector,
+% Change same quarter 1 year ago*. `sector_name` and `measure_text` are kept
+alongside it as separate columns, because they are useful to filter on even
+though the title already reads well on its own.
 
 Observations come from `pr.data.1.AllData`, not `pr.data.0.Current`. `Current`
 only covers recent years; question 2 needs each series' full history.
@@ -180,6 +183,27 @@ is doing.
 work*. And a green pipeline with empty tables is worse than a failed one,
 because nothing tells you to look.
 
+### The label I built, and the one BLS had already written
+
+Question 2 asks for a label someone unfamiliar with BLS codes could understand
+at a glance. I built one by joining `pr.series` to `pr.sector` and
+`pr.measure`, which produced *Employment — Manufacturing*.
+
+Then I looked at the output. `PRS30006011`, `012`, `013` and `014` all carried
+that identical label. They are four different series — percent change on the
+year, percent change on the quarter, an index, and a level in millions of jobs
+— separated by `duration_code`, which my label had thrown away.
+
+`pr.series` already has a `series_title` column written by BLS that
+distinguishes them properly. I had read enough of the documentation to find the
+lookup tables and not enough to notice the answer was sitting in the file I was
+already reading. The label now comes from `series_title`; the components stay
+as separate columns because they are useful to filter on.
+
+It also only surfaced because I looked at the rows rather than the row count.
+283 labelled series is a number that looks correct whether or not the labels
+mean anything.
+
 ### Smaller things that cost time
 
 - **The padding appears twice** — in the headers and in the values, needing
@@ -193,6 +217,11 @@ because nothing tells you to look.
 - **283 of 337 series have a best year.** The other 54 are listed in
   `pr.series` but have no non-`Q05` rows in the data file, checked with a
   left-anti join. The metadata describes more series than the data holds.
+- **The tombstone pass assumed one source.** It compared the whole manifest
+  against the BLS directory listing, which marked `population.json` removed on
+  every run — it comes from the API and was never in that listing. Scoped it to
+  rows whose `source_url` belongs to the BLS endpoint. A manifest covering more
+  than one source has to know which source each row came from.
 - **The population API has no 2020** — ACS didn't publish 1-year estimates that
   year. It's outside the range question 1 asks for, so I noted it rather than
   filling it in.

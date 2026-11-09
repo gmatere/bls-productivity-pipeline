@@ -119,8 +119,11 @@ def sync() -> list[dict]:
                     "reason": "new file" if not prior else "content changed"})
         time.sleep(0.5)   # be a polite client
 
-    # Tombstone anything that disappeared upstream. Never delete history.
-    gone = set(known) - set(files)
+    # Tombstone only files this function manages. population.json comes from a
+    # different source and is not in the BLS listing, so an unscoped
+    # set-difference would mark it removed on every run.
+    gone = {fn for fn, row in known.items()
+            if (row["source_url"] or "").startswith(BASE) and fn not in files}
     for fn in gone:
         if known[fn]["status"] == "active":
             spark.sql(f"UPDATE {MANIFEST} SET status='removed' WHERE filename='{fn}'")

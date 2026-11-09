@@ -70,13 +70,14 @@ def silver_observations():
             .withColumn("is_annual_average", F.col("period") == F.lit("Q05")))
 
 
-@dlt.table(comment="Series with human-readable labels.")
+@dlt.table(comment="Series with BLS's own human-readable title, plus component labels.")
 @dlt.expect_or_fail("series_id_present", "series_id IS NOT NULL")
 def silver_series():
     s = spark.read.table("bronze_pr_series").select(
             F.trim("series_id").alias("series_id"),
             F.trim("sector_code").alias("sector_code"),
-            F.trim("measure_code").alias("measure_code"))
+            F.trim("measure_code").alias("measure_code"),
+            F.trim("series_title").alias("series_label"))
     sector = spark.read.table("bronze_pr_sector").select(
             F.trim("sector_code").alias("sector_code"),
             F.trim("sector_name").alias("sector_name"))
@@ -85,8 +86,6 @@ def silver_series():
             F.trim("measure_text").alias("measure_text"))
     return (s.join(sector, "sector_code", "left")
              .join(measure, "measure_code", "left")
-             .withColumn("series_label",
-                         F.concat_ws(" — ", "measure_text", "sector_name"))
              .select("series_id", "series_label", "sector_name", "measure_text"))
 
 

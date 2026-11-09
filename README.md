@@ -30,7 +30,20 @@ returns the sample form. See `PROCESS.md`.
 
 **283 series** have a best year, each labelled with what it measures.
 
-> _Sample rows pending — see `workspace.rearc.gold_series_best_year`._
+| series_id | series_label | year | summed_value |
+|---|---|---:|---:|
+| PRS30006011 | Employment for the Manufacturing sector, % Change same quarter 1 year ago | 2022 | 16.40 |
+| PRS30006012 | Employment for the Manufacturing sector, % Change from previous quarter | 2022 | 13.00 |
+| PRS30006013 | Employment for the Manufacturing sector, Index (2017=100) | 1989 | 578.37 |
+| PRS30006014 | Employment for the Manufacturing sector, Level (Millions of jobs) | 1989 | 73.69 |
+| PRS30006021 | Average weekly hours for the Manufacturing sector, % Change same quarter 1 year ago | 2010 | 14.20 |
+
+_First five of 283, ordered by `series_id`._
+
+The label is `series_title` from `pr.series` — BLS's own wording. The four
+`PRS300060 1x` series above measure the same thing in four different ways, and
+a label built from sector and measure alone would have rendered all four
+identically.
 
 `Q05` is **excluded**: `pr.period` defines it as the annual average, not a
 fifth quarter, so summing `Q01`–`Q05` would add the mean of four values to
